@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>M5 Buoy Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:#081826;
+color:white;
+padding:12px;
+}
+
+.container{
+max-width:800px;
+margin:auto;
+}
+
+.header{
+font-size:28px;
+font-weight:bold;
+margin-bottom:6px;
+}
+
+.surf{
+font-size:24px;
+margin-bottom:14px;
+}
+
+.state{
+display:inline-block;
+padding:4px 10px;
+border-radius:12px;
+font-size:12px;
+margin-left:8px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(4,1fr);
+gap:8px;
+margin-bottom:18px;
+}
+
+.card{
+background:#102c3f;
+padding:10px;
+border-radius:6px;
+text-align:center;
+}
+
+.label{
+font-size:12px;
+opacity:0.7;
+}
+
+.value{
+font-size:20px;
+font-weight:bold;
+}
+
+canvas{
+background:white;
+border-radius:6px;
+margin-bottom:16px;
+}
+
+.compass{
+width:120px;
+height:120px;
+border:2px solid white;
+border-radius:50%;
+margin:auto;
+position:relative;
+}
+
+.arrow{
+width:3px;
+height:50px;
+background:white;
+position:absolute;
+top:10px;
+left:58px;
+transform-origin:bottom;
+}
+
+.update{
+font-size:11px;
+opacity:0.6;
+margin-top:8px;
+}
+
+@media(max-width:650px){
+.grid{
+grid-template-columns:repeat(2,1fr);
+}
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="header">M5 Wave Buoy</div>
+
+<div class="surf" id="surf"></div>
+
+<div class="grid">
+
+<div class="card">
+<div class="label">Sig Wave Height</div>
+<div class="value" id="Hs"></div>
+</div>
+
+<div class="card">
+<div class="label">Sig Wave Period</div>
+<div class="value" id="Tp"></div>
+</div>
+
+<div class="card">
+<div class="label">Max Wave Height</div>
+<div class="value" id="Hmax"></div>
+</div>
+
+<div class="card">
+<div class="label">Max Wave Period</div>
+<div class="value" id="Tmax"></div>
+</div>
+
+<div class="card">
+<div class="label">Direction</div>
+<div class="value" id="Dir"></div>
+</div>
+
+<div class="card">
+<div class="label">Wave Compass</div>
+<div class="compass">
+<div class="arrow" id="arrow"></div>
+</div>
+</div>
+
+</div>
+
+<canvas id="heightChart"></canvas>
+<canvas id="periodChart"></canvas>
+
+<div class="update" id="updated"></div>
+
+</div>
+
+<script>
+
+const url =
+"https://erddap.marine.ie/erddap/tabledap/IWBNetwork.json?time,wave_height,wave_period,wave_dir&station_id='M5'&time>=now-2days"
+
+function seaState(h){
+
+if(h < 1) return ["Calm","#2ecc71"]
+if(h < 2) return ["Moderate","#f1c40f"]
+if(h < 4) return ["Rough","#e67e22"]
+return ["Very Rough","#e74c3c"]
+
+}
+
+function degToCompass(num){
+
+const val=Math.floor((num/22.5)+0.5)
+const arr=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"]
+return arr[(val % 16)]
+
+}
+
+let heightChart
+let periodChart
+
+function loadData(){
+
+fetch(url)
+.then(r=>r.json())
+.then(data=>{
+
+let times=[]
+let heights=[]
+let periods=[]
+let dirs=[]
+
+data.table.rows.forEach(r=>{
+times.push(r[0].substring(11,16))
+heights.push(r[1])
+periods.push(r[2])
+dirs.push(r[3])
+})
+
+let last=data.table.rows[data.table.rows.length-1]
+
+let Hs=last[1]
+let Tp=last[2]
+let Dir=last[3]
+
+let state=seaState(Hs)
+
+document.getElementById("Hs").innerText=Hs+" m"
+document.getElementById("Tp").innerText=Tp+" s"
+document.getElementById("Dir").innerText=degToCompass(Dir)+" ("+Dir+"°)"
+
+document.getElementById("surf").innerHTML =
+Hs+"m @ "+Tp+"s "+degToCompass(Dir)+
+"<span class='state' style='background:"+state[1]+"'>"+state[0]+"</span>"
+
+document.getElementById("arrow").style.transform =
+"rotate("+Dir+"deg)"
+
+document.getElementById("updated").innerText =
+"Updated "+new Date().toLocaleTimeString()
+
+drawCharts(times,heights,periods)
+
+})
+
+}
+
+function drawCharts(times,heights,periods){
+
+if(heightChart) heightChart.destroy()
+if(periodChart) periodChart.destroy()
+
+heightChart=new Chart(
+document.getElementById("heightChart"),
+{
+type:"line",
+data:{
+labels:times,
+datasets:[{
+label:"Wave Height (m)",
+data:heights,
+borderWidth:2
+}]
+}
+})
+
+periodChart=new Chart(
+document.getElementById("periodChart"),
+{
+type:"line",
+data:{
+labels:times,
+datasets:[{
+label:"Wave Period (s)",
+data:periods,
+borderWidth:2
+}]
+}
+})
+
+}
+
+loadData()
+
+setInterval(loadData,600000)
+
+</script>
+
+</body>
+</html>
